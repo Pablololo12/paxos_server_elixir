@@ -16,8 +16,11 @@ defmodule ServidorPaxos do
   defstruct   fiabilidad: :fiable,
         n_mensajes: 0,
         servidores: [],
-        yo: nil 
+        yo: nil,
         #completar esta estructura de datos con lo que se necesite
+        instancias: %{},
+        proponentes: %{},
+        aceptadores: %{}
 
   @timeout 50
 
@@ -67,8 +70,7 @@ defmodule ServidorPaxos do
   """
   @spec start_instancia(node, non_neg_integer, String.t) :: :ok
   def start_instancia(nodo_paxos, nu_instancia, valor) do
-    
-    # VUESTRO CODIGO AQUI
+    send({:paxos, nodo_paxos}, {:start_instancia, nu_instancia, valor})
     :ok
   end
 
@@ -80,9 +82,13 @@ defmodule ServidorPaxos do
   """
   @spec estado(node, non_neg_integer) :: {boolean, String.t}
   def estado(nodo_paxos, nu_instancia) do
-    
-    # VUESTRO CODIGO AQUI
-    {true, :ficticio}
+    send({:paxos, nodo_paxos}, {:estado, nu_instancia, self()})
+    receive do
+      {:estado, elegido, valor} ->
+        {elegido, valor}
+      after @timeout ->
+        {false, :ficticio}
+    end
   end
 
   @doc """
@@ -177,9 +183,6 @@ defmodule ServidorPaxos do
   def init(servidores, yo) do
     Process.register(self(), :paxos)
 
-    #### VUESTRO CODIGO DE INICIALIZACION
-    IO.puts("Arrancando")
-
     bucle_recepcion(%ServidorPaxos{fiabilidad: :fiable,
         n_mensajes: 0,
         servidores: servidores,
@@ -262,14 +265,54 @@ defmodule ServidorPaxos do
 
   defp gestion_mnsj_prop_y_acep(mensaje, estado) do
 
-    # VUESTRO CODIGO AQUI
+    case mensaje do
+      {:estado, nu_instancia, pid} ->
+        if estado.instancias[nu_instancia] == nil do
+          send(pid, {:estado, false, :ficticio})
+        else
+          IO.inspect(estado.instancias[nu_instancia])
+          send(pid, {:estado, true, estado.instancias[nu_instancia]})
+        end
+      {:start_instancia, nu_instancia, valor} ->
+        if estado.aceptadores[nu_instancia] == nil do
+          acep = Aceptador.crear_aceptador(nu_instancia)
+          estado = %{estado | aceptadores: Map.put(estado.aceptadores,
+                                                   nu_instancia,acep)}
+        end
+        if estado.proponentes[nu_instancia] == nil do
+          prop = Proponedor.crear_proponedor(estado.servidores,
+                                             nu_instancia, valor, self())
+          estado = %{estado | proponentes: Map.put(estado.proponentes,
+                                                   nu_instancia,prop)}
+        end
+      # Mensajes recibidos de proponente
+      {:prepara, n, nu_instancia, pid} ->
+        if estado.aceptadores[nu_instancia] == nil do
+          acep = Aceptador.crear_aceptador(nu_instancia)
+          estado = %{estado | aceptadores: Map.put(estado.aceptadores,
+                                                   nu_instancia,acep)}
+        end
+        send(estado.aceptadores[nu_instancia], {:prepara, n, pid})
+      {:acepta, n, v, nu_instancia, pid} ->
+        send(estado.aceptadores[nu_instancia], {:acepta, n, v, pid})
+      {:decidido, v, nu_instancia} ->
+        estado = %{estado | instancias: Map.put(estado.instancias,
+                                                nu_instancia, v)}
+      # Mensajes recibidos de aceptadores
+      {:prepare_ok, n, n_a, v_a, nu_instancia} ->
+        send(estado.proponentes[nu_instancia], {:prepare_ok, n, n_a, v_a})
+      {:prepare_reject, n_p, nu_instancia} ->
+        send(estado.proponentes[nu_instancia], {:prepare_reject, n_p})
+      {:acepta_ok, n, nu_instancia} ->
+        send(estado.proponentes[nu_instancia], {:acepta_ok, n})
+      {:acepta_reject, n_p, nu_instancia} ->
+        send(estado.proponentes[nu_instancia], {:acepta_reject, n_p})
+      _ ->
+        IO.puts("Algo raro ha pasado en gestion_mnsj_prop_y_acep")
+        IO.inspect(mensaje)
+    end
     
     bucle_recepcion(estado)
-  end
-
-
-  defp proponente(n, v, n_a, v_a) do
-    
   end
 
 end

@@ -1,27 +1,34 @@
 defmodule Aceptador do
   
-  def crear_aceptador(n_p, n_a, v_a) do
-    Node.spawn_link(node(), __MODULE__, :aceptador, [n_p, n_a, v_a])
+  def crear_aceptador(nu_instancia) do
+    IO.puts("Aceptador creado con instancia #{nu_instancia}")
+    Node.spawn_link(node(), __MODULE__, :aceptador, [0,0,0,nu_instancia])
   end
 
-  defp aceptador(n_p, n_a, v_a) do
+  def aceptador(n_p, n_a, v_a, nu_instancia) do
     receive do
-      {:prepara, n, Pid} ->
+      {:prepara, n, pid} ->
         if n > n_p do
-          send(Pid, {:prepare_ok, n, n_a, v_a})
-          aceptador(n, n_a, v_a)
+          #IO.puts("prepare_ok")
+          send(pid, {:prepare_ok, n, n_a, v_a, nu_instancia})
+          aceptador(n, n_a, v_a, nu_instancia)
         else
-          send(Pid, {:prepare_reject, n_p})
-          aceptador(n, n_a, v_a)
+          #IO.puts("prepare_reject")
+          send(pid, {:prepare_reject, n_p, nu_instancia})
+          aceptador(n, n_a, v_a, nu_instancia)
         end
-      {:acepta, n, v, Pid} ->
+      {:acepta, n, v, pid} ->
         if n >= n_p do
-          send(Pid, {:acepta_ok, n})
-          aceptador(n, n, v)
+          #IO.puts("acepta_ok")
+          send(pid, {:acepta_ok, n, nu_instancia})
+          aceptador(n, n, v, nu_instancia)
         else
-          send(Pid, {:acepta_reject, n_p})
-          aceptador(n_p, n_a, v_a)
+          #IO.puts("acepta_reject")
+          send(pid, {:acepta_reject, n_p, nu_instancia})
+          aceptador(n_p, n_a, v_a, nu_instancia)
         end
+      _ ->
+        IO.puts("Algo raro ha pasado en aceptador")
     end
   end
 end
