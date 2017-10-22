@@ -2,6 +2,8 @@
 #    -kernel inet_dist_listen_min 32000 -kernel inet_dist_listen_max 32009 \
 #    -eval "eunit:test(paxos)."  -run init stop
 
+pkill epmd
+pkill erl
 # Ejecución del programa de tests
 elixir  --name pablo@127.0.0.1 --cookie 'palabrasecreta' \
 	--erl  '-kernel inet_dist_listen_min 32000' \

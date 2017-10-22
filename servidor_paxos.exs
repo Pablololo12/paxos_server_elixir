@@ -2,6 +2,7 @@
 Code.require_file("#{__DIR__}/nodo_remoto.exs")
 Code.require_file("#{__DIR__}/proponedor.exs")
 Code.require_file("#{__DIR__}/aceptador.exs")
+Code.require_file("#{__DIR__}/send_adicional.exs")
 
 defmodule ServidorPaxos do
 
@@ -17,6 +18,7 @@ defmodule ServidorPaxos do
         n_mensajes: 0,
         servidores: [],
         yo: nil,
+        nodos_accesibles: [],
         #completar esta estructura de datos con lo que se necesite
         instancias: %{},
         proponentes: %{},
@@ -70,7 +72,7 @@ defmodule ServidorPaxos do
   """
   @spec start_instancia(node, non_neg_integer, String.t) :: :ok
   def start_instancia(nodo_paxos, nu_instancia, valor) do
-    send({:paxos, nodo_paxos}, {:start_instancia, nu_instancia, valor})
+    Send.con_nodo_emisor({:paxos, nodo_paxos}, {:start_instancia, nu_instancia, valor})
     :ok
   end
 
@@ -82,7 +84,7 @@ defmodule ServidorPaxos do
   """
   @spec estado(node, non_neg_integer) :: {boolean, String.t}
   def estado(nodo_paxos, nu_instancia) do
-    send({:paxos, nodo_paxos}, {:estado, nu_instancia, self()})
+    Send.con_nodo_emisor({:paxos, nodo_paxos}, {:estado, nu_instancia, self()})
     receive do
       {:estado, elegido, valor} ->
         {elegido, valor}
@@ -100,8 +102,13 @@ defmodule ServidorPaxos do
   @spec hecho(node, non_neg_integer) :: {boolean, String.t}
   def hecho(nodo_paxos, nu_instancia) do
     
-    # VUESTRO CODIGO AQUI
-    :ok
+    Send.con_nodo_emisor({:paxos, nodo_paxos}, {:hecho, self(), nu_instancia})
+    receive do
+      {:hecho, valor} ->
+        valor
+      after @timeout ->
+        false
+    end
 
   end
 
@@ -113,7 +120,13 @@ defmodule ServidorPaxos do
   @spec maxi(node) :: non_neg_integer
   def maxi(nodo_paxos) do
     
-    # VUESTRO CODIGO AQUI
+    Send.con_nodo_emisor({:paxos, nodo_paxos}, {:maxi, self()})
+    receive do
+      {:maxi, valor} ->
+        valor
+      after @timeout ->
+        0
+    end
 
   end
 
@@ -125,7 +138,13 @@ defmodule ServidorPaxos do
   @spec mini(node) :: non_neg_integer
   def mini(nodo_paxos) do
     
-    # VUESTRO CODIGO AQUI
+    Send.con_nodo_emisor({:paxos, nodo_paxos}, {:mini, self()})
+    receive do
+      {:mini, valor} ->
+        valor
+      after @timeout ->
+        0
+    end
 
   end
 
@@ -134,7 +153,7 @@ defmodule ServidorPaxos do
   """
   @spec comm_no_fiable(node) :: :comm_no_fiable
   def comm_no_fiable(nodo_paxos) do       
-    send({:paxos, nodo_paxos}, :comm_no_fiable)
+    Send.con_nodo_emisor({:paxos, nodo_paxos}, :comm_no_fiable)
   end
 
   @doc """
@@ -144,7 +163,7 @@ defmodule ServidorPaxos do
   """
   @spec limitar_acceso(node, [node]) :: :ok
   def limitar_acceso(nodo_paxos, otros_nodos) do
-    send({:paxos, nodo_paxos},{:limitar_acceso, otros_nodos ++ [node()]})
+    Send.con_nodo_emisor({:paxos, nodo_paxos},{:limitar_acceso, otros_nodos ++ [node()]})
     :ok
   end
 
@@ -154,7 +173,7 @@ defmodule ServidorPaxos do
   """
   @spec ponte_sordo(node) :: :ponte_sordo
   def ponte_sordo(nodo_paxos) do
-    send({:paxos, nodo_paxos},:ponte_sordo)
+    Send.con_nodo_emisor({:paxos, nodo_paxos},:ponte_sordo)
   end
 
   @doc """
@@ -163,7 +182,7 @@ defmodule ServidorPaxos do
   """
   @spec escucha(node) :: :escucha
   def escucha(nodo_paxos) do
-    send({:paxos, nodo_paxos},:escucha)
+    Send.con_nodo_emisor({:paxos, nodo_paxos},:escucha)
   end
 
   @doc """
@@ -171,7 +190,7 @@ defmodule ServidorPaxos do
   """
   @spec n_mensajes(node) :: non_neg_integer
   def n_mensajes(nodo_paxos) do
-    send({:paxos, nodo_paxos},{:n_mensajes, self()})
+    Send.con_nodo_emisor({:paxos, nodo_paxos},{:n_mensajes, self()})
     receive do Respuesta -> Respuesta end
   end
 
@@ -190,7 +209,11 @@ defmodule ServidorPaxos do
   end
 
   defp bucle_recepcion(estado) do
-    receive do
+    estado = %{estado | n_mensajes: estado.n_mensajes + 1}
+    # Obtener mensaje si viene de misma particion, y procesarlo
+    case filtra_recepcion(estado.nodos_accesibles) do
+      :invalido ->    # se ignora este tipo de mensaje
+        bucle_recepcion(estado)
       :comm_no_fiable    ->
         poner_no_fiable(estado)
         bucle_recepcion(estado)
@@ -226,6 +249,22 @@ defmodule ServidorPaxos do
     end
   end
 
+  defp filtra_recepcion(nodos_accesibles) do
+    receive do
+      {nodo_emisor, mensaje} ->
+        case nodos_accesibles do
+          [] -> mensaje # no hay limitacion red de este nodo receptor 
+          nodos_acc ->
+            # nodo emisor esta en misma particion de nodo receptor
+            if Enum.member?(nodos_acc, nodo_emisor), do: mensaje,
+            # si NO lo esta, el mensaje NO se admite
+            else: :invalido  # nodo emisor NO es accesible
+        end
+      otro_msj ->
+        exit("Error: función filtra_recepcion, mensaje : #{otro_msj}")
+    end
+  end
+
   defp poner_no_fiable(estado) do
     estado = %{estado | fiabilidad: :nofiable}
   end
@@ -241,7 +280,7 @@ defmodule ServidorPaxos do
   defp espero_escucha(estado) do
     IO.puts("#{node()} : Esperando a recibir escucha")
     receive do
-      :escucha ->
+      {pid, :escucha} ->
         IO.puts("#{node()} : Salgo de la sordera !!")
         bucle_recepcion(estado)
       
@@ -261,6 +300,30 @@ defmodule ServidorPaxos do
     else  # Y si lo es tratar el mensaje recibido correctamente
       gestion_mnsj_prop_y_acep(mensaje, estado)
     end
+  end
+
+  defp minimo(colection, [h|t], last) do
+    if colection[h] == nil do
+      last
+    end
+    minimo(colection, t, h)
+  end
+  defp minimo(colection, [], last) do
+    last
+  end
+
+  defp hecho(colection, [h|t], val) do
+    if h > val do
+      true
+    end
+    if colection[h] != nil do
+      hecho(colection, t, val)
+    else
+      false
+    end
+  end
+  defp hecho(colection, [], val) do
+    true
   end
 
   defp gestion_mnsj_prop_y_acep(mensaje, estado) do
@@ -285,6 +348,17 @@ defmodule ServidorPaxos do
           estado = %{estado | proponentes: Map.put(estado.proponentes,
                                                    nu_instancia,prop)}
         end
+      {:hecho, pid, val} ->
+        valore = hecho(estado.instancias, Enum.sort(Map.keys(estado.instancias)),val)
+        send(pid, {:hecho, valore})
+      {:maxi, pid} ->
+        maximo = Enum.max(Map.keys(estado.instancias))
+        send(pid, {:maxi, maximo})
+      {:mini, pid} ->
+        minimo = minimo(estado.instancias, Enum.sort(Map.keys(estado.instancias)), 0)
+        IO.inspect(minimo)
+        IO.inspect(estado.instancias)
+        send(pid, {:mini, minimo})
       # Mensajes recibidos de proponente
       {:prepara, n, nu_instancia, pid} ->
         if estado.aceptadores[nu_instancia] == nil do
