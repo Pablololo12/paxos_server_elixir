@@ -222,16 +222,16 @@ defmodule ServidorPaxos do
         poner_fiable(estado)
         bucle_recepcion(estado)
         
-      {:es_fiable, Pid} -> 
-        send(Pid, es_fiable?(estado))
+      {:es_fiable, pid} -> 
+        send(pid, es_fiable?(estado))
         bucle_recepcion(estado)
 
-      {:limitar_acceso, Nodos} ->
-        #????????????
+      {:limitar_acceso, nodos} ->
+        estado = %{estado | nodos_accesibles: nodos}
         bucle_recepcion(estado)    
 
-      {:n_mensajes, Pid} ->
-        send(Pid, ServidorPaxos.n_mensajes)
+      {:n_mensajes, pid} ->
+        send(pid, ServidorPaxos.n_mensajes)
         bucle_recepcion(estado)
       
       :ponte_sordo -> espero_escucha(estado);
@@ -302,28 +302,26 @@ defmodule ServidorPaxos do
     end
   end
 
-  defp minimo(colection, [h|t], last) do
-    if colection[h] == nil do
-      last
+  defp minimo(colection, [h|t]) do
+    if colection[h] != nil do
+      h
+    else
+      minimo(colection, t)
     end
-    minimo(colection, t, h)
   end
-  defp minimo(colection, [], last) do
-    last
+  defp minimo(colection, []) do
+    0
   end
 
   defp hecho(colection, [h|t], val) do
-    if h > val do
-      true
-    end
-    if colection[h] != nil do
-      hecho(colection, t, val)
+    if h <= val do
+      hecho(Map.delete(colection, h), t, val)
     else
-      false
+      colection
     end
   end
   defp hecho(colection, [], val) do
-    true
+    colection
   end
 
   defp gestion_mnsj_prop_y_acep(mensaje, estado) do
@@ -349,15 +347,14 @@ defmodule ServidorPaxos do
                                                    nu_instancia,prop)}
         end
       {:hecho, pid, val} ->
-        valore = hecho(estado.instancias, Enum.sort(Map.keys(estado.instancias)),val)
-        send(pid, {:hecho, valore})
+        ret = hecho(estado.instancias, Enum.sort(Map.keys(estado.instancias)),val)
+        estado = %{estado | instancias: ret}
+        send(pid, {:hecho, true})
       {:maxi, pid} ->
         maximo = Enum.max(Map.keys(estado.instancias))
         send(pid, {:maxi, maximo})
       {:mini, pid} ->
-        minimo = minimo(estado.instancias, Enum.sort(Map.keys(estado.instancias)), 0)
-        IO.inspect(minimo)
-        IO.inspect(estado.instancias)
+        minimo = minimo(estado.instancias, Enum.sort(Map.keys(estado.instancias)))
         send(pid, {:mini, minimo})
       # Mensajes recibidos de proponente
       {:prepara, n, nu_instancia, pid} ->

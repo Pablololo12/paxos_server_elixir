@@ -143,6 +143,7 @@ defmodule  ServicioPaxosTest do
 
             {:ok, [s: servidores, n_s: num_servidores]}
         end
+        # Quinto test
         #Funciona
         @tag :deshabilitado
         test "Proponentes sordos", %{s: s, n_s: num_servidores} do
@@ -195,8 +196,9 @@ defmodule  ServicioPaxosTest do
 
             {:ok, [s: servidores, n_s: num_servidores]}
         end
-
-        #@tag :deshabilitado
+        # Sexto test
+        #Funciona
+        @tag :deshabilitado
         test "Olvidando", %{s: s, n_s: num_servidores} do
             IO.puts("Test: Olvidando ...")
             
@@ -232,10 +234,8 @@ defmodule  ServicioPaxosTest do
                   fn({x, y}) -> ServidorPaxos.start_instancia(x, 8 + y, "xx") end)
             Process.sleep(12)
             l_mini = for x <- s, do: ServidorPaxos.mini(x)
-            IO.inspect(l_mini)
             all_3 = List.foldl(l_mini, true,
                                fn(x, previo) -> (x === 3) and previo end)
-            IO.inspect(all_3)
             if not all_3 do
                 exit("mini() no ha avanzado despues de hecho() !")
             end
@@ -259,7 +259,8 @@ defmodule  ServicioPaxosTest do
 
             {:ok, [s: servidores, n_s: num_servidores]}
         end
-
+        # Septimo test
+        #Funciona
         @tag :deshabilitado
         test "Muchas instancias", %{s: s, n_s: num_serv} do
             # Ejecutar 10 lotes, cada uno de 3 instancias a la vez.
@@ -285,8 +286,9 @@ defmodule  ServicioPaxosTest do
 
             IO.puts(" ... Superado")
         end
-
-        @tag :deshabilitado
+        # Octavo test
+        #Funciona
+        #@tag :deshabilitado
         test "Muchas instancias, comm. no fiable:", %{s: s, n_s: n_serv} do
             # Poner todos los nodos en comunicación no fiable
             Enum.each(s, fn(nodo) -> ServidorPaxos.comm_no_fiable(nodo) end)
@@ -332,9 +334,10 @@ defmodule  ServicioPaxosTest do
 
             {:ok, [s: servidores]}
         end
-
-       @tag :deshabilitado
-       test "No hay decisión si particionado", %{s: s} do
+        # Noveno test
+        #Funciona
+        @tag :deshabilitado
+        test "No hay decisión si particionado", %{s: s} do
             particionar(s, [ [0, 2], [1,3], [4] ] )
         
             ServidorPaxos.start_instancia(Enum.at(s, 1), 1, "11")
@@ -358,7 +361,8 @@ defmodule  ServicioPaxosTest do
 
             {:ok, [s: servidores]}
         end
-  
+        # Decimo test
+        #Funciona
         @tag :deshabilitado
         test "Decision en particion mayoritaria", %{s: s} do
             particionar(s, [ [0], [1, 2, 3], [4] ] )
