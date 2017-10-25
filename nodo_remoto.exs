@@ -18,14 +18,13 @@ defmodule NodoRemoto do
                     "--erl  \'-kernel inet_dist_listen_max 32009\'",
                     "--detached --no-halt #{fichero_programa_cargar}"])
 
-        nodo = String.to_atom(nombre <> "@" <> host) 
+        nodo = String.to_atom(nombre <> "@" <> host)
         comprobar_funciona(nodo, modulo)
         :io.format("Tiempo puesta en marcha de nodo ~p : ~p~n",
                     [nodo, :os.system_time(:milli_seconds) - tiempo_antes])
         #Resultado es el atomo que forma el nombre completo del nodo Elixir
         nodo
     end
-
     @doc """
         Parar un nodo VM remoto por la via rapida
     """

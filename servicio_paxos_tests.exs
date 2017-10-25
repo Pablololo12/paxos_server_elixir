@@ -45,7 +45,7 @@ defmodule  ServicioPaxosTest do
 
         # Primer test
         # Funciona
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "Unico proponente", %{n1: n1, s: servidores} do
             IO.puts("Test: Unico proponente ...")
 
@@ -61,7 +61,7 @@ defmodule  ServicioPaxosTest do
 
         # Segundo test
         #Funciona
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "Varios propo., un valor", 
                                     %{n1: n1, n2: n2, n3: n3, s: servidores} do
             IO.puts("Test: Varios propo., un valor ...")
@@ -80,7 +80,7 @@ defmodule  ServicioPaxosTest do
 
         # Tercer test
         #Funciona
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "Varios propo., varios valor",
                                         %{n1: n1, n2: n2, n3: n3, s: servers} do
             IO.puts("Test: Varios propo., varios valor ...")
@@ -98,7 +98,7 @@ defmodule  ServicioPaxosTest do
 
         # Cuarto test
         #Funciona
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "Instancias fuera de orden",
                                         %{n1: n1, n2: n2, n3: n3, s: servers} do
             IO.puts("Test: Instancias fuera de orden ...")
@@ -145,7 +145,7 @@ defmodule  ServicioPaxosTest do
         end
         # Quinto test
         #Funciona
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "Proponentes sordos", %{s: s, n_s: num_servidores} do
             IO.puts("Test: Proponentes sordos ...")
 
@@ -198,7 +198,7 @@ defmodule  ServicioPaxosTest do
         end
         # Sexto test
         #Funciona
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "Olvidando", %{s: s, n_s: num_servidores} do
             IO.puts("Test: Olvidando ...")
             
@@ -261,7 +261,7 @@ defmodule  ServicioPaxosTest do
         end
         # Septimo test
         #Puede quiza debo revisar V en proponente
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "Muchas instancias", %{s: s, n_s: num_serv} do
             # Ejecutar 10 lotes, cada uno de 3 instancias a la vez.
             # Es decir,  30 instancias en total
@@ -295,7 +295,7 @@ defmodule  ServicioPaxosTest do
             
             # Ejecutar 10 lotes, cada uno de 3 instancias a la vez.
             # Es decir,  30 instancias en total
-            Enum.each(1..10, 
+            Enum.each(1..10,
                       fn(lote) ->
                           Enum.each((((lote - 1) * 3) + 1)..(lote * 3),
                               fn(i) ->
@@ -336,7 +336,7 @@ defmodule  ServicioPaxosTest do
         end
         # Noveno test
         #Funciona
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "No hay decisión si particionado", %{s: s} do
             particionar(s, [ [0, 2], [1,3], [4] ] )
         
@@ -363,7 +363,7 @@ defmodule  ServicioPaxosTest do
         end
         # Decimo test
         #Funciona
-        @tag :deshabilitado
+        #@tag :deshabilitado
         test "Decision en particion mayoritaria", %{s: s} do
             particionar(s, [ [0], [1, 2, 3], [4] ] )
         

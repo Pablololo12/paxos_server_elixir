@@ -5,7 +5,7 @@ Code.require_file("#{__DIR__}/aceptador.exs")
 Code.require_file("#{__DIR__}/send_adicional.exs")
 
 defmodule ServidorPaxos do
-
+  
   @moduledoc """
     modulo del servicio de vistas
   """
@@ -73,8 +73,14 @@ defmodule ServidorPaxos do
   """
   @spec start_instancia(node, non_neg_integer, String.t) :: :ok
   def start_instancia(nodo_paxos, nu_instancia, valor) do
-    Send.con_nodo_emisor({:paxos, nodo_paxos}, {:start_instancia, nu_instancia, valor})
-    :ok
+    Send.con_nodo_emisor({:paxos, nodo_paxos},
+                          {:start_instancia, nu_instancia, valor, self()})
+    receive do
+      {:ACK} ->
+        :ok
+    after @timeout ->
+      start_instancia(nodo_paxos, nu_instancia, valor)
+    end
   end
 
   @doc """
@@ -164,7 +170,8 @@ defmodule ServidorPaxos do
   """
   @spec limitar_acceso(node, [node]) :: :ok
   def limitar_acceso(nodo_paxos, otros_nodos) do
-    Send.con_nodo_emisor({:paxos, nodo_paxos},{:limitar_acceso, otros_nodos ++ [node()]})
+    Send.con_nodo_emisor({:paxos, nodo_paxos},
+                          {:limitar_acceso, otros_nodos ++ [node()]})
     :ok
   end
 
@@ -339,11 +346,11 @@ defmodule ServidorPaxos do
           if estado.instancias[nu_instancia] == nil do
             send(pid, {:estado, false, :ficticio})
           else
-            #IO.puts("#{node()} #{nu_instancia} #{estado.instancias[nu_instancia]}")
             send(pid, {:estado, true, estado.instancias[nu_instancia]})
           end
           estado
-        {:start_instancia, nu_instancia, valor} ->
+        {:start_instancia, nu_instancia, valor, pid} ->
+          send(pid, {:ACK})
           if estado.aceptadores[nu_instancia] == nil do
             acep = Aceptador.crear_aceptador(nu_instancia)
             estado = %{estado | aceptadores: Map.put(estado.aceptadores,
@@ -388,13 +395,23 @@ defmodule ServidorPaxos do
           send(estado.aceptadores[nu_instancia], {:prepara, n, pid})
           estado
         {:acepta, n, v, nu_instancia, pid} ->
+          if estado.aceptadores[nu_instancia] == nil do
+            acep = Aceptador.crear_aceptador(nu_instancia)
+            estado = %{estado | aceptadores: Map.put(estado.aceptadores,
+                                                     nu_instancia,acep)}
+          end
+
           send(estado.aceptadores[nu_instancia], {:acepta, n, v, pid})
           estado
-        {:decidido, v, nu_instancia} ->
+        {:decidido, v, nu_instancia, pid} ->
           estado = %{estado | instancias: Map.put(estado.instancias,
                                                   nu_instancia, v)}
+          Send.con_nodo_emisor({:paxos, pid}, {:ACK, nu_instancia, estado.yo})
           estado
         # Mensajes recibidos de aceptadores
+        {:ACK, nu_instancia, pid} ->
+          send(estado.proponentes[nu_instancia], {:ACK, pid})
+          estado
         {:prepare_ok, n, n_a, v_a, nu_instancia} ->
           send(estado.proponentes[nu_instancia], {:prepare_ok, n, n_a, v_a})
           estado

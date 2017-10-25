@@ -13,17 +13,18 @@ defmodule Proponedor do
   def proponedor(aceptadores, n, num_instancia, valor, pid) do
     #Prepara
     Enum.each(aceptadores, fn nodo_paxos ->
-              Send.con_nodo_emisor({:paxos, nodo_paxos},{:prepara, n, num_instancia, pid}) end)
+              Send.con_nodo_emisor({:paxos, nodo_paxos},
+                                  {:prepara, n, num_instancia, pid}) end)
     #Prepara_ok de todos?
     {v, count, n_p} = prepara_ok(n, 0, valor, 0)
     if(count >= (div(length(aceptadores),2)+1)) do
       #acepta
       Enum.each(aceptadores, fn nodo_paxos ->
-        Send.con_nodo_emisor({:paxos, nodo_paxos}, {:acepta, n, v, num_instancia, pid}) end)
+        Send.con_nodo_emisor({:paxos, nodo_paxos},
+                            {:acepta, n, v, num_instancia, pid}) end)
       {n_a, count} = acepto_ok(n,0)
       if(count >= (div(length(aceptadores),2)+1)) do
-        Enum.each(aceptadores, fn nodo_paxos -> 
-          Send.con_nodo_emisor({:paxos, nodo_paxos}, {:decidido, v, num_instancia}) end)
+        decide(aceptadores, v, num_instancia)
         IO.puts("#Decido #{node()} #{num_instancia} #{v}")
       else
         proponedor(aceptadores, n_a+2, num_instancia, valor, pid)
@@ -31,6 +32,23 @@ defmodule Proponedor do
     else
       proponedor(aceptadores, n_p+2, num_instancia, valor, pid)
     end
+  end
+
+  defp decide(aceptadores, valor, nu_instancia) do
+    Enum.each(aceptadores, fn nodo_paxos->
+      Send.con_nodo_emisor({:paxos, nodo_paxos},
+                           {:decidido, valor, nu_instancia, node()}) end)
+      if espero(0) != length(aceptadores) do
+        decide(aceptadores, valor, nu_instancia)
+      end
+  end
+    
+  defp espero(count) do
+    receive do
+      {:ACK, _} -> espero(count+1)
+    after @timeout -> count
+    end
+
   end
 
   defp prepara_ok(n_mio, n_a, v, count) do
