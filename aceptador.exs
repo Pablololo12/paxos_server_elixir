@@ -17,7 +17,7 @@ defmodule Aceptador do
         else
           #IO.puts("prepare_reject")
           Send.con_nodo_emisor(pid, {:prepare_reject, n_p, nu_instancia})
-          aceptador(n, n_p, v_a, nu_instancia)
+          aceptador(n_p, n_a, v_a, nu_instancia)
         end
       {:acepta, n, v, pid} ->
         if n >= n_p do

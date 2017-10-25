@@ -22,7 +22,8 @@ defmodule ServidorPaxos do
         #completar esta estructura de datos con lo que se necesite
         instancias: %{},
         proponentes: %{},
-        aceptadores: %{}
+        aceptadores: %{},
+        hechos: %{}
 
   @timeout 50
 
@@ -49,7 +50,7 @@ defmodule ServidorPaxos do
   """
   @spec stop(node) :: :ok
   def stop(nodo_paxos) do
-    nodo = NodoRemoto.stop(nodo_paxos)
+    NodoRemoto.stop(nodo_paxos)
     vaciar_buzon()
   end
 
@@ -201,11 +202,14 @@ defmodule ServidorPaxos do
   # spawn_link(__MODULE__, init,[...])
   def init(servidores, yo) do
     Process.register(self(), :paxos)
-
     bucle_recepcion(%ServidorPaxos{fiabilidad: :fiable,
         n_mensajes: 0,
         servidores: servidores,
-        yo: yo})
+        yo: yo,
+        hechos: Enum.reduce(servidores, %{},
+                    fn x, acc ->
+                      Map.put(acc, x, 0)
+                    end)})
   end
 
   defp bucle_recepcion(estado) do
@@ -215,7 +219,7 @@ defmodule ServidorPaxos do
       :invalido ->    # se ignora este tipo de mensaje
         bucle_recepcion(estado)
       :comm_no_fiable    ->
-        poner_no_fiable(estado)
+        estado = poner_no_fiable(estado)
         bucle_recepcion(estado)
 
       :comm_fiable       ->
@@ -237,6 +241,7 @@ defmodule ServidorPaxos do
       :ponte_sordo -> espero_escucha(estado);
 
       {'EXIT', _pid, dato_devuelto} -> 
+        IO.inspect(dato_devuelto)
         # Cuando proceso proponente acaba
   
         # VUESTRO CODIGO AQUI
@@ -267,10 +272,12 @@ defmodule ServidorPaxos do
 
   defp poner_no_fiable(estado) do
     estado = %{estado | fiabilidad: :nofiable}
+    estado
   end
 
   defp poner_fiable(estado) do
     estado = %{estado | fiabilidad: :fiable}
+    estado
   end
 
   defp es_fiable?(estado) do
@@ -280,7 +287,7 @@ defmodule ServidorPaxos do
   defp espero_escucha(estado) do
     IO.puts("#{node()} : Esperando a recibir escucha")
     receive do
-      {pid, :escucha} ->
+      {_, :escucha} ->
         IO.puts("#{node()} : Salgo de la sordera !!")
         bucle_recepcion(estado)
       
@@ -294,7 +301,7 @@ defmodule ServidorPaxos do
     aleatorio = :rand.uniform(1000)
     
     #si no fiable, eliminar mensaje con cierta aleatoriedad
-    if  ((not fiable) and (aleatorio < 200)) do 
+    if  ((not fiable) and (aleatorio < 200)) do
       bucle_recepcion(estado);
           
     else  # Y si lo es tratar el mensaje recibido correctamente
@@ -309,7 +316,7 @@ defmodule ServidorPaxos do
       minimo(colection, t)
     end
   end
-  defp minimo(colection, []) do
+  defp minimo(_, []) do
     0
   end
 
@@ -320,68 +327,90 @@ defmodule ServidorPaxos do
       colection
     end
   end
-  defp hecho(colection, [], val) do
+  defp hecho(colection, [], _) do
     colection
   end
 
   defp gestion_mnsj_prop_y_acep(mensaje, estado) do
-
-    case mensaje do
-      {:estado, nu_instancia, pid} ->
-        if estado.instancias[nu_instancia] == nil do
-          send(pid, {:estado, false, :ficticio})
-        else
-          IO.inspect(estado.instancias[nu_instancia])
-          send(pid, {:estado, true, estado.instancias[nu_instancia]})
-        end
-      {:start_instancia, nu_instancia, valor} ->
-        if estado.aceptadores[nu_instancia] == nil do
-          acep = Aceptador.crear_aceptador(nu_instancia)
-          estado = %{estado | aceptadores: Map.put(estado.aceptadores,
-                                                   nu_instancia,acep)}
-        end
-        if estado.proponentes[nu_instancia] == nil do
-          prop = Proponedor.crear_proponedor(estado.servidores,
-                                             nu_instancia, valor, self())
-          estado = %{estado | proponentes: Map.put(estado.proponentes,
-                                                   nu_instancia,prop)}
-        end
-      {:hecho, pid, val} ->
-        ret = hecho(estado.instancias, Enum.sort(Map.keys(estado.instancias)),val)
-        estado = %{estado | instancias: ret}
-        send(pid, {:hecho, true})
-      {:maxi, pid} ->
-        maximo = Enum.max(Map.keys(estado.instancias))
-        send(pid, {:maxi, maximo})
-      {:mini, pid} ->
-        minimo = minimo(estado.instancias, Enum.sort(Map.keys(estado.instancias)))
-        send(pid, {:mini, minimo})
-      # Mensajes recibidos de proponente
-      {:prepara, n, nu_instancia, pid} ->
-        if estado.aceptadores[nu_instancia] == nil do
-          acep = Aceptador.crear_aceptador(nu_instancia)
-          estado = %{estado | aceptadores: Map.put(estado.aceptadores,
-                                                   nu_instancia,acep)}
-        end
-        send(estado.aceptadores[nu_instancia], {:prepara, n, pid})
-      {:acepta, n, v, nu_instancia, pid} ->
-        send(estado.aceptadores[nu_instancia], {:acepta, n, v, pid})
-      {:decidido, v, nu_instancia} ->
-        estado = %{estado | instancias: Map.put(estado.instancias,
-                                                nu_instancia, v)}
-      # Mensajes recibidos de aceptadores
-      {:prepare_ok, n, n_a, v_a, nu_instancia} ->
-        send(estado.proponentes[nu_instancia], {:prepare_ok, n, n_a, v_a})
-      {:prepare_reject, n_p, nu_instancia} ->
-        send(estado.proponentes[nu_instancia], {:prepare_reject, n_p})
-      {:acepta_ok, n, nu_instancia} ->
-        send(estado.proponentes[nu_instancia], {:acepta_ok, n})
-      {:acepta_reject, n_p, nu_instancia} ->
-        send(estado.proponentes[nu_instancia], {:acepta_reject, n_p})
-      _ ->
-        IO.puts("Algo raro ha pasado en gestion_mnsj_prop_y_acep")
-        IO.inspect(mensaje)
-    end
+ 
+    estado =
+      case mensaje do
+        {:estado, nu_instancia, pid} ->
+          if estado.instancias[nu_instancia] == nil do
+            send(pid, {:estado, false, :ficticio})
+          else
+            #IO.puts("#{node()} #{nu_instancia} #{estado.instancias[nu_instancia]}")
+            send(pid, {:estado, true, estado.instancias[nu_instancia]})
+          end
+          estado
+        {:start_instancia, nu_instancia, valor} ->
+          if estado.aceptadores[nu_instancia] == nil do
+            acep = Aceptador.crear_aceptador(nu_instancia)
+            estado = %{estado | aceptadores: Map.put(estado.aceptadores,
+                                                     nu_instancia,acep)}
+          end
+          if estado.proponentes[nu_instancia] == nil do
+            prop = Proponedor.crear_proponedor(estado.servidores,
+                                               nu_instancia, valor, self())
+            %{estado | proponentes: Map.put(estado.proponentes,
+                                                 nu_instancia,prop)}
+          else
+            estado
+          end
+        {:hecho, pid, val} ->
+          estado = %{estado | hechos: Map.put(estado.hechos, estado.yo, val)}
+          Enum.each(estado.servidores, fn nodo ->
+            if nodo != estado.yo do 
+              Send.con_nodo_emisor({:paxos, nodo}, {:hecho_2, estado.yo, val}) 
+            end end)
+          send(pid, {:hecho, true})
+          estado
+        {:hecho_2, pid, val} ->
+          estado = %{estado | hechos: Map.put(estado.hechos, pid, val)}
+          estado
+        {:maxi, pid} ->
+          maximo = Enum.max(Map.keys(estado.instancias))
+          send(pid, {:maxi, maximo})
+          estado
+        {:mini, pid} ->
+          minimo = Enum.min(Map.values(estado.hechos))
+          send(pid, {:mini, minimo+1})
+          estado = %{estado | instancias: hecho(estado.instancias, 
+                                          Map.keys(estado.instancias), minimo)}
+          estado
+        # Mensajes recibidos de proponente
+        {:prepara, n, nu_instancia, pid} ->
+          if estado.aceptadores[nu_instancia] == nil do
+            acep = Aceptador.crear_aceptador(nu_instancia)
+            estado = %{estado | aceptadores: Map.put(estado.aceptadores,
+                                                     nu_instancia,acep)}
+          end
+          send(estado.aceptadores[nu_instancia], {:prepara, n, pid})
+          estado
+        {:acepta, n, v, nu_instancia, pid} ->
+          send(estado.aceptadores[nu_instancia], {:acepta, n, v, pid})
+          estado
+        {:decidido, v, nu_instancia} ->
+          estado = %{estado | instancias: Map.put(estado.instancias,
+                                                  nu_instancia, v)}
+          estado
+        # Mensajes recibidos de aceptadores
+        {:prepare_ok, n, n_a, v_a, nu_instancia} ->
+          send(estado.proponentes[nu_instancia], {:prepare_ok, n, n_a, v_a})
+          estado
+        {:prepare_reject, n_p, nu_instancia} ->
+          send(estado.proponentes[nu_instancia], {:prepare_reject, n_p})
+          estado
+        {:acepta_ok, n, nu_instancia} ->
+          send(estado.proponentes[nu_instancia], {:acepta_ok, n})
+          estado
+        {:acepta_reject, n_p, nu_instancia} ->
+          send(estado.proponentes[nu_instancia], {:acepta_reject, n_p})
+          estado
+        _ ->
+          IO.puts("Algo raro ha pasado en gestion_mnsj_prop_y_acep #{mensaje}")
+          estado
+      end
     
     bucle_recepcion(estado)
   end

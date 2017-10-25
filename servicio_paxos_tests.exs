@@ -260,7 +260,7 @@ defmodule  ServicioPaxosTest do
             {:ok, [s: servidores, n_s: num_servidores]}
         end
         # Septimo test
-        #Funciona
+        #Puede quiza debo revisar V en proponente
         @tag :deshabilitado
         test "Muchas instancias", %{s: s, n_s: num_serv} do
             # Ejecutar 10 lotes, cada uno de 3 instancias a la vez.
@@ -287,13 +287,13 @@ defmodule  ServicioPaxosTest do
             IO.puts(" ... Superado")
         end
         # Octavo test
-        #Funciona
+        #NO Funciona
         #@tag :deshabilitado
         test "Muchas instancias, comm. no fiable:", %{s: s, n_s: n_serv} do
             # Poner todos los nodos en comunicación no fiable
             Enum.each(s, fn(nodo) -> ServidorPaxos.comm_no_fiable(nodo) end)
             
-             # Ejecutar 10 lotes, cada uno de 3 instancias a la vez.
+            # Ejecutar 10 lotes, cada uno de 3 instancias a la vez.
             # Es decir,  30 instancias en total
             Enum.each(1..10, 
                       fn(lote) ->
