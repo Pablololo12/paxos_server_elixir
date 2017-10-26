@@ -90,13 +90,18 @@ defmodule ServidorPaxos do
     Devuelve : {Decidido :: bool, valor}
   """
   @spec estado(node, non_neg_integer) :: {boolean, String.t}
-  def estado(nodo_paxos, nu_instancia) do
+  def estado(nodo_paxos, nu_instancia, n\\0) do
     Send.con_nodo_emisor({:paxos, nodo_paxos}, {:estado, nu_instancia, self()})
     receive do
       {:estado, elegido, valor} ->
         {elegido, valor}
       after @timeout ->
-        {false, :ficticio}
+        #{false, :ficticio}
+        if n == 3 do
+          {false, :ficticio}
+        else
+          estado(nodo_paxos, nu_instancia, n+1)
+        end
     end
   end
 
@@ -108,7 +113,6 @@ defmodule ServidorPaxos do
   """
   @spec hecho(node, non_neg_integer) :: {boolean, String.t}
   def hecho(nodo_paxos, nu_instancia) do
-    
     Send.con_nodo_emisor({:paxos, nodo_paxos}, {:hecho, self(), nu_instancia})
     receive do
       {:hecho, valor} ->
@@ -292,7 +296,7 @@ defmodule ServidorPaxos do
   end
 
   defp espero_escucha(estado) do
-    IO.puts("#{node()} : Esperando a recibir escucha")
+    #IO.puts("#{node()} : Esperando a recibir escucha")
     receive do
       {_, :escucha} ->
         IO.puts("#{node()} : Salgo de la sordera !!")

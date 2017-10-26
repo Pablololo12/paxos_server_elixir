@@ -198,7 +198,7 @@ defmodule  ServicioPaxosTest do
         end
         # Sexto test
         #Funciona
-        #@tag :deshabilitado
+        ##@tag :deshabilitado
         test "Olvidando", %{s: s, n_s: num_servidores} do
             IO.puts("Test: Olvidando ...")
             
